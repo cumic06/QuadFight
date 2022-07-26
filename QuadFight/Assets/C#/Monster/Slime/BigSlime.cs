@@ -4,30 +4,8 @@ using UnityEngine;
 
 public class BigSlime : Monster
 {
-    SpriteRenderer sprite;
-
-
-    public float BS_Hp = 50;
-
-    public void Awake()
+    public override void Monster_Hit(int damage)
     {
-        sprite = GetComponent<SpriteRenderer>();
-    }
-
-    private void Update()
-    {
-        Monster_Dead();
-    }
-
-    public override void Monster_Hit()
-    {
-        BS_Hp -= 10;
-    }
-    public override void Monster_Dead()
-    {
-        if (BS_Hp <= 0)
-        {
-            BS_Hp = 0;
-        }
+        M_Hp -= damage;
     }
 }

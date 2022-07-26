@@ -1,97 +1,186 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
-public class Monster : MonoBehaviour
+using System;
+public enum WM
 {
-    #region Variable
-    private MonsterState currentState;
+    Slime,
+    BigSlime
+}
 
-    public MonsterState CurrentState => currentState;
+public abstract class Monster : MonoFSM<Monster>
+{
+    #region 변수
+    private WM wm;
+    public WM Wm
+    {
+        get => wm;
+        set
+        {
+            switch (value)
+            {
+                case WM.Slime:
+                    M_Hp = 20;
+                    M_damage = 5;
+                    break;
+                case WM.BigSlime:
+                    M_Hp = 50;
+                    M_damage = 10;
+                    break;
+            }
+            wm = value;
+        }
+    }
+    protected Action DeathAction { get; set; }
 
-    private Dictionary<string, MonsterState> monsterStateDict = new Dictionary<string, MonsterState>();
+    [Header("몹체력")]
+    [SerializeField] protected int M_maxHp;
+
+    [SerializeField] protected int M_hp;
+    public int M_Hp
+    {
+        get => M_hp;
+        set
+        {
+            M_hp = Mathf.Clamp(value, 0, M_maxHp);
+            if (M_hp <= 0)
+            {
+                DeathAction?.Invoke();
+            }
+        }
+    }
+
+    [Header("몹공격력")]
+    [SerializeField] protected int M_damage;
+
+    public int M_Damage => M_damage;
+
+    [Header("몹이동 속도")]
+    [SerializeField] protected float M_moveSpeed = 1;
+    public float M_MoveSpeed => M_moveSpeed;
+
+    [Header("플레이어 감지 범위")]
+    [SerializeField] protected float findDis = 3;
+    public float FindDis => findDis;
+
+    [Header("무적시간")]
+    [SerializeField] float hitDelay = 0.1f;
+    public float HitDelay => hitDelay;
+
+    [HideInInspector] public Player target;
+    [HideInInspector] public bool IsDeath;
     #endregion
 
-    private SpriteRenderer sprite;
-
-    private CircleCollider2D col;
-
+    #region Component
     private Animator anim;
     public Animator Anim => anim;
 
-    public Transform player;
+    private SpriteRenderer sprite;
+    public SpriteRenderer Sprite => sprite;
+    #endregion
 
-    public float M_speed;
-
-    public string key;
-
-    public void SetState<T>(string key) where T : MonsterState, new()
+    public override void SetState(IState<Monster> state)
     {
-        if (!monsterStateDict.ContainsKey(key))
+        if (IsDeath)
         {
-            monsterStateDict.Add(key, new T());
+            return;
         }
-
-        if (currentState != null)
-        {
-            currentState.OnExit();
-        }
-        currentState = monsterStateDict[key];
-        currentState.OnEnter(this);
+        base.SetState(state);
     }
-    private void Awake()
+
+    public abstract void Monster_Hit(int damage);
+
+    protected virtual void Awake()
     {
         anim = GetComponent<Animator>();
-        col = GetComponent<CircleCollider2D>();
         sprite = GetComponent<SpriteRenderer>();
-        transform.position += Vector3.forward * Time.deltaTime * 20;
     }
-    private void Start()
+    protected virtual void Start()
     {
-        player = GameObject.FindGameObjectWithTag("Player").transform;
+        SetState(new MonsterIdle());
     }
+}
+#region Monster FSM
+public class MonsterIdle : IState<Monster>
+{
+    public Monster Instance { get; set; }
+    public virtual void OnEnter(Monster instance)
+    {
+        Instance = instance;
+    }
+    public virtual void OnExit()
+    {
 
-    private void OnEnable()
-    {
-        StartCoroutine(M_Move());
     }
-
-    private void OnTriggerEnter2D(Collider2D collision)
+    public virtual void OnUpdate()
     {
-        if (collision.gameObject.CompareTag("Player"))
+        RaycastHit2D hit = Physics2D.CircleCast(Instance.transform.position, 5, Vector2.zero, 5, LayerMask.GetMask("Player"));
+        if (hit)
         {
-            Monster_Hit();
+            Instance.target = hit.collider.GetComponent<Player>();
+            Instance.SetState(new MonsterMove());
         }
     }
-
-    public virtual void Monster_Hit()
+}
+public class MonsterMove : IState<Monster>
+{
+    public Monster Instance { get; set; }
+    public virtual void OnEnter(Monster instance)
     {
-        StartCoroutine(nameof(changeColor));
+        Instance = instance;
+        Instance.Anim.SetBool("isFollow", true);
     }
-
-    public virtual void Monster_Dead()
+    public virtual void OnExit()
     {
-        MonsterPoolManager.Instance.ReturnMonster(key, this);
+        Instance.Anim.SetBool("isFollow", false);
     }
-
-    IEnumerator changeColor()
+    public virtual void OnUpdate()
     {
-        for (float t = 0; t < 3; t += Time.deltaTime)
+        float dist = Vector2.Distance(Instance.transform.position, Instance.target.transform.position);
+        if (!Instance.target || dist > 5)
         {
-            sprite.color = new Color(1, 1, 1, 0.4f);
-            yield return new WaitForSeconds(0.3f);
-            sprite.color = new Color(1, 1, 1, 1);
-            yield return new WaitForSeconds(0.3f);
+            Instance.SetState(new MonsterIdle());
         }
-    }
 
-    IEnumerator M_Move()
-    {
-        for (float t = 0; t < 3; t += Time.deltaTime)
+        if (dist < 0.5f)
         {
-            transform.position += Vector3.zero * Time.deltaTime;
-            yield return null;
+            Instance.SetState(new MonsterAttack());
+        }
+
+        Vector3 dir = (Instance.target.transform.position - Instance.transform.position).normalized;
+        Instance.transform.position += dir * Instance.M_MoveSpeed * Time.deltaTime;
+        if (dir.x != 0)
+        {
+            Instance.Sprite.flipX = dir.x < 0;
         }
     }
 
 }
+public class MonsterAttack : IState<Monster>
+{
+    public Monster Instance { get; set; }
+    Coroutine m_attackCor;
+    public virtual void OnEnter(Monster instance)
+    {
+        Instance = instance;
+        m_attackCor = Instance.StartCoroutine(M_Attack());
+    }
+    public virtual void OnExit()
+    {
+        Instance.StopCoroutine(m_attackCor);
+    }
+    public virtual void OnUpdate()
+    {
+
+    }
+    protected IEnumerator M_Attack()
+    {
+        if (Instance.target != null)
+        {
+            Instance.target.SetState(new PlayerHit());
+        }
+        yield return new WaitForSeconds(1f);
+        Instance.SetState(new MonsterIdle());
+    }
+}
+#endregion
