@@ -11,27 +11,9 @@ public enum WM
 public abstract class Monster : MonoFSM<Monster>
 {
     #region º¯¼ö
-    private WM wm;
-    public WM Wm
-    {
-        get => wm;
-        set
-        {
-            switch (value)
-            {
-                case WM.Slime:
-                    M_Hp = 20;
-                    M_damage = 5;
-                    break;
-                case WM.BigSlime:
-                    M_Hp = 50;
-                    M_damage = 10;
-                    break;
-            }
-            wm = value;
-        }
-    }
     protected Action DeathAction { get; set; }
+
+    public string key;
 
     [Header("¸÷Ã¼·Â")]
     [SerializeField] protected int M_maxHp;
@@ -67,7 +49,7 @@ public abstract class Monster : MonoFSM<Monster>
     [SerializeField] float hitDelay = 0.1f;
     public float HitDelay => hitDelay;
 
-    [HideInInspector] public Player target;
+    public Player target;
     [HideInInspector] public bool IsDeath;
     #endregion
 
@@ -78,17 +60,17 @@ public abstract class Monster : MonoFSM<Monster>
     private SpriteRenderer sprite;
     public SpriteRenderer Sprite => sprite;
     #endregion
+    public abstract void Monster_Hit(int damage);
 
     public override void SetState(IState<Monster> state)
     {
         if (IsDeath)
         {
+            MonsterPoolManager.Instance.ReturnMonster(key, this);
             return;
         }
         base.SetState(state);
     }
-
-    public abstract void Monster_Hit(int damage);
 
     protected virtual void Awake()
     {
@@ -128,38 +110,40 @@ public class MonsterMove : IState<Monster>
     public virtual void OnEnter(Monster instance)
     {
         Instance = instance;
-        Instance.Anim.SetBool("isFollow", true);
     }
     public virtual void OnExit()
     {
-        Instance.Anim.SetBool("isFollow", false);
+        Instance.Anim.SetBool("S_isFollow", false);
     }
     public virtual void OnUpdate()
     {
+        Vector3 dir = (Instance.target.transform.position - Instance.transform.position).normalized;
+        Instance.transform.position += dir * Instance.M_MoveSpeed * Time.deltaTime;
+        Instance.Anim.SetBool("S_isFollow", true);
+
+        if (dir.x != 0)
+        {
+            Instance.Sprite.flipX = dir.x < 0;
+        }
+
         float dist = Vector2.Distance(Instance.transform.position, Instance.target.transform.position);
         if (!Instance.target || dist > 5)
         {
             Instance.SetState(new MonsterIdle());
         }
 
-        if (dist < 0.5f)
+        if (dist < 1f)
         {
+            Instance.Anim.SetBool("S_Attack", true);
             Instance.SetState(new MonsterAttack());
         }
-
-        Vector3 dir = (Instance.target.transform.position - Instance.transform.position).normalized;
-        Instance.transform.position += dir * Instance.M_MoveSpeed * Time.deltaTime;
-        if (dir.x != 0)
-        {
-            Instance.Sprite.flipX = dir.x < 0;
-        }
     }
-
 }
 public class MonsterAttack : IState<Monster>
 {
     public Monster Instance { get; set; }
     Coroutine m_attackCor;
+
     public virtual void OnEnter(Monster instance)
     {
         Instance = instance;
@@ -167,6 +151,7 @@ public class MonsterAttack : IState<Monster>
     }
     public virtual void OnExit()
     {
+        Instance.Anim.SetBool("S_Attack", false);
         Instance.StopCoroutine(m_attackCor);
     }
     public virtual void OnUpdate()
@@ -177,10 +162,37 @@ public class MonsterAttack : IState<Monster>
     {
         if (Instance.target != null)
         {
+            Instance.Anim.SetBool("S_Attack", true);
             Instance.target.SetState(new PlayerHit());
         }
+        Instance.Anim.SetBool("S_Attack", false);
         yield return new WaitForSeconds(1f);
         Instance.SetState(new MonsterIdle());
+    }
+}
+public class M_Hit : IState<Monster>
+{
+    Coroutine m_changeCol;
+    public Monster Instance { get; set; }
+    public virtual void OnEnter(Monster instance)
+    {
+        Instance = instance;
+        m_changeCol = Instance.StartCoroutine(m_changeColor());
+    }
+    public virtual void OnExit()
+    {
+        Instance.StopCoroutine(m_changeCol);
+    }
+    public virtual void OnUpdate()
+    {
+
+    }
+    IEnumerator m_changeColor()
+    {
+        Instance.Sprite.color = new Color(1, 1, 1, 0.4f);
+        yield return new WaitForSeconds(0.1f);
+        Instance.Sprite.color = new Color(1, 1, 1, 1f);
+        yield return new WaitForSeconds(0.1f);
     }
 }
 #endregion

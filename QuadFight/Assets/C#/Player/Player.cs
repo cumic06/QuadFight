@@ -19,17 +19,27 @@ public class Player : MonoFSM<Player>
         }
     }
 
-
     [Header("이동속도")]
     [SerializeField] float moveSpeed;
     public float MoveSpeed => moveSpeed;
 
     [Header("가드속도")]
-    [SerializeField] float guardSpeed = 1000f;
+    [SerializeField] float guardSpeed;
     public float GuardSpeed => guardSpeed;
     [Header("공격력")]
     [SerializeField] int attackDamage;
     public int AttackDamage => attackDamage;
+    [Header("공격속도(높을수록 빠름)")]
+    [SerializeField] float attackSpeed = 1;
+    public float AttackSpeed
+    {
+        get => attackSpeed;
+        set
+        {
+            attackSpeed = Mathf.Clamp(value, 1, 5);
+            Anim.SetFloat("AttackSpeed", value);
+        }
+    }
 
     private Vector2 moveDir;
     public Vector2 MoveDir => moveDir;
@@ -50,6 +60,7 @@ public class Player : MonoFSM<Player>
     {
         sprite = GetComponent<SpriteRenderer>();
         anim = GetComponent<Animator>();
+        AttackSpeed = attackSpeed;
     }
     private void Start()
     {
@@ -95,11 +106,11 @@ public class PlayerIdle : IState<Player>
         {
             Instance.SetState(new PlayerMove());
         }
-        if (Input.GetKeyDown(KeyCode.Mouse0))
+        if (Input.GetKey(KeyCode.Mouse0))
         {
             Instance.SetState(new PlayerAttack());
         }
-        if (Input.GetKeyDown(KeyCode.Mouse1))
+        if (Input.GetKey(KeyCode.Mouse1))
         {
             Instance.SetState(new PlayerGuard());
         }
@@ -111,15 +122,15 @@ public class PlayerMove : IState<Player>
     public void OnEnter(Player player)
     {
         Instance = player;
-        Instance.Anim.SetBool("isWalk", true);
+        Instance.Anim.SetBool("isRun", true);
     }
     public void OnExit()
     {
-        Instance.Anim.SetBool("isWalk", false);
+        Instance.Anim.SetBool("isRun", false);
     }
     public void OnUpdate()
     {
-        if (Input.GetKeyDown(KeyCode.Mouse0))
+        if (Input.GetKey(KeyCode.Mouse0))
         {
             Instance.SetState(new PlayerAttack());
         }
@@ -129,8 +140,7 @@ public class PlayerMove : IState<Player>
         }
 
         //이동
-        /*Instance.transform.position += (Vector3)Instance.MoveDir * Instance.MoveSpeed * Time.deltaTime*/
-        Instance.transform.position = new Vector2(Instance.MoveDir.x * Instance.MoveSpeed ,Instance.MoveDir.y * Instance.MoveSpeed * Time.deltaTime).normalized;
+        Instance.transform.position += (Vector3)Instance.MoveDir * Instance.MoveSpeed * Time.deltaTime;
         if (Instance.MoveDir.x != 0)
         {
             Instance.Sprite.flipX = Instance.MoveDir.x < 0;
@@ -140,17 +150,16 @@ public class PlayerMove : IState<Player>
 public class PlayerAttack : IState<Player>
 {
     Coroutine attackCor;
-
     public Player Instance { get; set; }
     public void OnEnter(Player player)
     {
         Instance = player;
-        Instance.StartCoroutine(P_Attack());
+        attackCor = Instance.StartCoroutine(P_Attack());
     }
     public void OnExit()
     {
         Instance.Anim.SetBool("isAttack", false);
-        Instance.StopCoroutine(P_Attack());
+        Instance.StopCoroutine(attackCor);
     }
     public void OnUpdate()
     {
@@ -161,15 +170,81 @@ public class PlayerAttack : IState<Player>
         int attackDir = Instance.AttackDir;
 
         Instance.Anim.SetBool("isAttack", true);
-        yield return new WaitForSeconds(0.7f);
+        yield return new WaitForSeconds(0.6f / Instance.AttackSpeed);
         Collider2D[] hits = Physics2D.OverlapBoxAll(Instance.transform.position + new Vector3(attackDir, 0), new Vector2(1.5f, 2), 0, LayerMask.GetMask("Enemy"));
         foreach (var hit in hits)
         {
             hit.GetComponent<Monster>().Monster_Hit(Instance.AttackDamage);
         }
+        Instance.Anim.SetBool("isAttack", false);
+        Instance.SetState(new PlayerIdle());
     }
 }
-public class PlayerGuard : IState<Player> 
+public class PlayerGuard : IState<Player>
+{
+    Coroutine guardCor;
+    public Player Instance { get; set; }
+    public void OnEnter(Player player)
+    {
+        Instance = player;
+        guardCor = Instance.StartCoroutine(P_Guard());
+    }
+    public void OnExit()
+    {
+        Instance.Anim.SetBool("isGuard", false);
+        Instance.StopCoroutine(guardCor);
+    }
+    public void OnUpdate()
+    {
+
+    }
+
+    IEnumerator P_Guard()
+    {
+        Instance.Anim.SetBool("isGuard", true);
+        yield return new WaitForSeconds(1f);
+        Instance.Anim.SetBool("isGuard", false);
+        Instance.SetState(new PlayerIdle());
+    }
+
+}
+public class PlayerHit : IState<Player>
+{
+    Coroutine HitCol;
+    Coroutine changeCol;
+    public Player Instance { get; set; }
+    public void OnEnter(Player player)
+    {
+        Instance = player;
+        HitCol = Instance.StartCoroutine(P_Hit());
+        changeCol = Instance.StartCoroutine(P_changeColor());
+    }
+    public void OnExit()
+    {
+        Instance.StopCoroutine(HitCol);
+        Instance.StopCoroutine(changeCol);
+        Instance.Anim.SetBool("isHit", false);
+    }
+    public void OnUpdate()
+    {
+
+    }
+    IEnumerator P_Hit()
+    {
+        Instance.Anim.SetBool("isHit", true);
+        yield return new WaitForSeconds(0.3f);
+        Instance.Anim.SetBool("isHit", false);
+        Instance.SetState(new PlayerIdle());
+    }
+    IEnumerator P_changeColor()
+    {
+        Instance.Sprite.color = new Color(1, 1, 1, 0.4f);
+        yield return new WaitForSeconds(0.1f);
+        Instance.Sprite.color = new Color(1, 1, 1, 1f);
+        yield return new WaitForSeconds(0.1f);
+    }
+}
+public class PlayerDead : IState<Player>
 {
     public Player Instance { get; set; }
     public void OnEnter(Player player)
@@ -184,22 +259,5 @@ public class PlayerGuard : IState<Player>
     {
 
     }
-
-}
-public class PlayerHit : IState<Player>
-{
-    public Player Instance {get;set;}
-    public void OnEnter(Player player)
-    {
-        Instance = player;
-    }
-    public void OnExit()
-    {
-
-    }
-    public void OnUpdate()
-    {
-
-    }
-}
+} 
 #endregion

@@ -22,7 +22,7 @@ public class MonsterPoolManager : MonoBehaviour
             else
             {
                 m_bullet = Instantiate(monsterPrefab).GetComponent<Monster>();
-                //m_bullet.key = key;
+                m_bullet.key = key;
                 m_bullet.transform.SetParent(transform);
             }
         }
@@ -31,7 +31,7 @@ public class MonsterPoolManager : MonoBehaviour
             monsterPool.Add(key, new Queue<Monster>());
 
             m_bullet = Instantiate(monsterPrefab).GetComponent<Monster>();
-            //m_bullet.key = key;
+            m_bullet.key = key;
             m_bullet.transform.SetParent(transform);
         }
         return m_bullet;

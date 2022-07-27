@@ -1150,8 +1150,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 69e3a60c8b54acb479704ce2c7cbb1f8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  maxHp: 100
+  hp: 100
   moveSpeed: 5
   guardSpeed: 1
+  attackDamage: 10
+  attackSpeed: 1
 --- !u!61 &272383174
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -1265,7 +1269,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 450957372}
-  - component: {fileID: 450957371}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -1273,18 +1276,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &450957371
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 450957370}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 906948e4e6715194e8fb999e4384ded3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &450957372
 Transform:
   m_ObjectHideFlags: 0

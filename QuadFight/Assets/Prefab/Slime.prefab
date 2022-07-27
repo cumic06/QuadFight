@@ -115,10 +115,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1a37c545090afca468da214c33364da2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 518555867441430462, guid: 378dcac325058774ca95dc0e712ccc31, type: 3}
-  M_speed: 0
-  key: Monster
-  S_Hp: 20
+  M_maxHp: 20
+  M_hp: 20
+  M_damage: 10
+  M_moveSpeed: 1
+  findDis: 3
+  hitDelay: 0.1
+  target: {fileID: 0}
+  IsDeath: 0
 --- !u!95 &188822194031771841
 Animator:
   serializedVersion: 4
