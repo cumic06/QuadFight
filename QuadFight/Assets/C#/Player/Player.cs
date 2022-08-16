@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class Player : MonoFSM<Player>
@@ -16,6 +17,10 @@ public class Player : MonoFSM<Player>
         set
         {
             hp = Mathf.Clamp(value, 0, maxHp);
+            if(Hp <= 0)
+            {
+                SetState(new PlayerDead());
+            }
         }
     }
 
@@ -26,9 +31,11 @@ public class Player : MonoFSM<Player>
     [Header("가드속도")]
     [SerializeField] float guardSpeed;
     public float GuardSpeed => guardSpeed;
+
     [Header("공격력")]
     [SerializeField] int attackDamage;
     public int AttackDamage => attackDamage;
+
     [Header("공격속도(높을수록 빠름)")]
     [SerializeField] float attackSpeed = 1;
     public float AttackSpeed
@@ -46,6 +53,8 @@ public class Player : MonoFSM<Player>
 
     private int attackDir;
     public int AttackDir => attackDir;
+
+    [HideInInspector] public bool PlayerDeath;
     #endregion
 
     #region Component
@@ -54,12 +63,15 @@ public class Player : MonoFSM<Player>
 
     private Animator anim;
     public Animator Anim => anim;
+
+    public static Player player;
     #endregion
 
     private void Awake()
     {
         sprite = GetComponent<SpriteRenderer>();
         anim = GetComponent<Animator>();
+        player = GetComponent<Player>();
         AttackSpeed = attackSpeed;
     }
     private void Start()
@@ -81,9 +93,16 @@ public class Player : MonoFSM<Player>
             attackDir = moveDir.x > 0 ? 1 : -1;
         }
     }
-    public void Hit(int damage)
+    public void P_Hit(int damage)
     {
+        Hp -= damage;
         SetState(new PlayerHit());
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(transform.position + new Vector3(attackDir * 0.3f, 0), new Vector3(3f, 3));
     }
 }
 
@@ -171,10 +190,11 @@ public class PlayerAttack : IState<Player>
 
         Instance.Anim.SetBool("isAttack", true);
         yield return new WaitForSeconds(0.6f / Instance.AttackSpeed);
-        Collider2D[] hits = Physics2D.OverlapBoxAll(Instance.transform.position + new Vector3(attackDir, 0), new Vector2(1.5f, 2), 0, LayerMask.GetMask("Enemy"));
+        Collider2D[] hits = Physics2D.OverlapBoxAll(Instance.transform.position + new Vector3(attackDir, 0), new Vector2(1.5f, 2), 0, LayerMask.GetMask("Monster"));
         foreach (var hit in hits)
         {
             hit.GetComponent<Monster>().Monster_Hit(Instance.AttackDamage);
+
         }
         Instance.Anim.SetBool("isAttack", false);
         Instance.SetState(new PlayerIdle());
@@ -210,25 +230,23 @@ public class PlayerGuard : IState<Player>
 }
 public class PlayerHit : IState<Player>
 {
-    Coroutine HitCol;
-    Coroutine changeCol;
     public Player Instance { get; set; }
     public void OnEnter(Player player)
     {
         Instance = player;
-        HitCol = Instance.StartCoroutine(P_Hit());
-        changeCol = Instance.StartCoroutine(P_changeColor());
+        Instance.StartCoroutine(P_Hit());
+        Instance.StartCoroutine(P_changeColor());
     }
     public void OnExit()
     {
-        Instance.StopCoroutine(HitCol);
-        Instance.StopCoroutine(changeCol);
+        Debug.Log("플레이어 체력" + Instance.Hp);
         Instance.Anim.SetBool("isHit", false);
     }
     public void OnUpdate()
     {
 
     }
+
     IEnumerator P_Hit()
     {
         Instance.Anim.SetBool("isHit", true);
@@ -250,6 +268,7 @@ public class PlayerDead : IState<Player>
     public void OnEnter(Player player)
     {
         Instance = player;
+
     }
     public void OnExit()
     {
@@ -259,5 +278,6 @@ public class PlayerDead : IState<Player>
     {
 
     }
-} 
+
+}
 #endregion
